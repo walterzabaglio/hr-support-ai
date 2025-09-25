@@ -1,15 +1,9 @@
-import importlib.metadata
-import streamlit as st
-
-st.write("OpenAI package version:", importlib.metadata.version("openai"))
-
 import streamlit as st
 from openai import OpenAI
 import pandas as pd
 import os
 
-
-# ✅ Correct client init (no proxies allowed in v1.0+)
+# ✅ Initialize OpenAI client (new SDK style)
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="HR Support AI Sandbox", page_icon="💼")
@@ -42,11 +36,11 @@ if st.button("Send") and prompt:
     if not context:
         confidence = 0.4
 
-    # Build user message
+    # Build user/system messages
     system_msg = "You are a helpful HR support assistant. Base answers on context if given."
     user_msg = f"Context: {context}\n\nQ: {prompt}" if context else prompt
 
-    # Call OpenAI API with fallback
+    # ✅ Call OpenAI API (1.0 syntax)
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",  # preferred model
@@ -65,6 +59,7 @@ if st.button("Send") and prompt:
             ]
         )
 
+    # ✅ Extract content with new SDK
     answer = response.choices[0].message.content
 
     st.markdown("### 🤖 AI Answer")
@@ -72,12 +67,15 @@ if st.button("Send") and prompt:
 
     st.markdown(f"**Confidence Score:** {confidence:.0%}")
 
-    # If low confidence, offer escalation
+    # Escalation path if low confidence
     if confidence < 0.6:
         st.warning("I'm not fully confident in this answer. You may want to escalate to HR.")
         if st.button("📩 Escalate to HR"):
             # Save escalation to CSV
-            new_entry = pd.DataFrame([{"question": prompt, "answer": answer}])
+            new_entry = pd.DataFrame([{
+                "question": prompt,
+                "answer": answer
+            }])
             if os.path.exists(ESCALATION_FILE):
                 new_entry.to_csv(ESCALATION_FILE, mode="a", header=False, index=False)
             else:
@@ -85,7 +83,7 @@ if st.button("Send") and prompt:
 
             st.success("✅ Your question has been logged for HR review!")
 
-# Show HR inbox if toggled
+# HR inbox viewer
 if st.checkbox("📂 Show HR Inbox (Escalated Questions)"):
     if os.path.exists(ESCALATION_FILE):
         inbox = pd.read_csv(ESCALATION_FILE)
