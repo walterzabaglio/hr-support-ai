@@ -3,7 +3,7 @@ from openai import OpenAI
 import pandas as pd
 import os
 
-# Initialize OpenAI client
+# ✅ Correct client init (no proxies allowed in v1.0+)
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="HR Support AI Sandbox", page_icon="💼")
