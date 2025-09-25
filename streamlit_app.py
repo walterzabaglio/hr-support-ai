@@ -1,14 +1,19 @@
 import streamlit as st
-import openai
+from openai import OpenAI
+import pandas as pd
+import os
 
-# Load OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Initialize OpenAI client
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="HR Support AI Sandbox", page_icon="💼")
 st.title("💼 HR Support AI Sandbox")
 st.write("Prototype of an HR assistant with confidence scoring and escalation to HR.")
 
-# Fake HR doc snippets
+# File where escalations will be logged
+ESCALATION_FILE = "hr_escalations.csv"
+
+# Fake HR doc snippets (simulating a small knowledge base)
 docs = {
     "vacation": "Full-time employees accrue 15 vacation days per year. Requests must be submitted at least 2 weeks in advance via the HR portal.",
     "sick": "Employees are entitled to 10 sick days per year. If you are unwell for more than 3 consecutive days, a doctor's note is required.",
@@ -31,20 +36,30 @@ if st.button("Send") and prompt:
     if not context:
         confidence = 0.4
 
-    # Build message
+    # Build user message
     system_msg = "You are a helpful HR support assistant. Base answers on context if given."
     user_msg = f"Context: {context}\n\nQ: {prompt}" if context else prompt
 
-    # Call OpenAI
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg}
-        ]
-    )
+    # Call OpenAI API with fallback
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # preferred model
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg}
+            ]
+        )
+    except Exception as e:
+        st.warning(f"⚠️ Primary model unavailable ({e}). Falling back to GPT-3.5.")
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg}
+            ]
+        )
 
-    answer = response['choices'][0]['message']['content']
+    answer = response.choices[0].message.content
 
     st.markdown("### 🤖 AI Answer")
     st.write(answer)
@@ -55,5 +70,19 @@ if st.button("Send") and prompt:
     if confidence < 0.6:
         st.warning("I'm not fully confident in this answer. You may want to escalate to HR.")
         if st.button("📩 Escalate to HR"):
-            # In a real app this would log to a database or send an email
-            st.success("Your question has been sent to HR for follow-up!")
+            # Save escalation to CSV
+            new_entry = pd.DataFrame([{"question": prompt, "answer": answer}])
+            if os.path.exists(ESCALATION_FILE):
+                new_entry.to_csv(ESCALATION_FILE, mode="a", header=False, index=False)
+            else:
+                new_entry.to_csv(ESCALATION_FILE, index=False)
+
+            st.success("✅ Your question has been logged for HR review!")
+
+# Show HR inbox if toggled
+if st.checkbox("📂 Show HR Inbox (Escalated Questions)"):
+    if os.path.exists(ESCALATION_FILE):
+        inbox = pd.read_csv(ESCALATION_FILE)
+        st.dataframe(inbox)
+    else:
+        st.info("No escalated questions yet.")
