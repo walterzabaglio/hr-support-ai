@@ -2,7 +2,10 @@ import streamlit as st
 from openai import OpenAI
 import pandas as pd
 import os
+import openai
+import pkg_resources
 
+st.write("OpenAI package version:", pkg_resources.get_distribution("openai").version)
 # ✅ Correct client init (no proxies allowed in v1.0+)
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
